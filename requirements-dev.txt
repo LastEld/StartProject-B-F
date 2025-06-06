@@ -1,0 +1,13 @@
+click==8.2.1
+colorama==0.4.6
+fastapi-cli==0.0.7
+markdown-it-py==3.0.0
+mdurl==0.1.2
+Pygments==2.19.1
+pytest
+pytest-cov
+rich==14.0.0
+rich-toolkit==0.14.7
+shellingham==1.5.4
+typer==0.16.0
+watchfiles==1.0.5

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+alembic/versions/*.pyc
+
+# Logs
+*.log
+
+# Env/secrets
+.env
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# Migrations cache (just in case)
+alembic/__pycache__/
+app/__pycache__/

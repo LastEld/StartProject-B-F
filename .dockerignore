@@ -1,0 +1,59 @@
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+env/
+ENV/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Test related
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# Database files (local development, should not be in image)
+*.db
+*.sqlite
+*.sqlite3
+test.db # Explicitly
+app.db # Explicitly
+test_pytest.db
+test_pytest.db-journal
+
+# Environment files
+.env
+.env.*
+!/.env.example # Keep .env.example if it's part of the repo and useful for reference
+
+# Log files
+*.log
+logs/
+
+# Other
+*.tmp
+*.bak
+*.patch
+*.diff
