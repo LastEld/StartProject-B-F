@@ -3,10 +3,22 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  getDevlogEntry, updateDevlogEntry, deleteDevlogEntry, restoreDevlogEntry,
-  summarizeDevlogEntry, getDevlogEntryAiContext, DevLogRead, DevLogUpdate, DevLogShort,
-  AIContextRead, AIContextCreate, AIContextUpdate as AIContextUpdateType,
-  listAiContexts, createAiContext, updateAiContext, deleteAiContext as deleteAiContextEntry,
+  getDevlog,
+  updateDevlog,
+  deleteDevlog,
+  restoreDevlog,
+  summarizeDevlogEntry,
+  getDevlogEntryAIContext,
+  DevLogRead,
+  DevLogUpdate,
+  DevLogShort,
+  AIContextRead,
+  AIContextCreate,
+  AIContextUpdate as AIContextUpdateType,
+  listAIContexts,
+  createAIContext,
+  updateAIContext,
+  deleteAIContext as deleteAiContextEntry,
 } from "../../../lib/api";
 
 import { Button } from "@/components/ui/button";
@@ -76,7 +88,7 @@ export default function DevLogEntryPage() {
     setLoading(true); setError(null);
     try {
       const token = localStorage.getItem("access_token");
-      const data = await getDevlogEntry(entryIdNum, token ?? undefined);
+      const data = await getDevlog(entryIdNum, token ?? undefined);
       setEntry(data);
       setEditFormData({ title: data.title, content: data.content, entry_type: data.entry_type, project_id: data.project_id, task_id: data.task_id, tags: data.tags || [] });
     } catch (err: any) {
@@ -93,7 +105,7 @@ export default function DevLogEntryPage() {
     setViewableAiContexts(null);
     try {
       const token = localStorage.getItem("access_token");
-      const data = await getDevlogEntryAiContext(entryIdNum, token ?? undefined);
+      const data = await getDevlogEntryAIContext(entryIdNum, token ?? undefined);
       setViewableAiContexts(data);
       toast.success("Linked AI contexts loaded.", { id: toastId });
     } catch (err: any) {
@@ -111,7 +123,7 @@ export default function DevLogEntryPage() {
     let specificError = null;
     try {
       const token = localStorage.getItem("access_token");
-      const contexts = await listAiContexts({ object_type: "devlog_entry", object_id: entryIdNum, limit: 50 }, token ?? undefined);
+      const contexts = await listAIContexts({ object_type: "devlog_entry", object_id: entryIdNum, limit: 50 }, token ?? undefined);
       setManagedAiContextsList(contexts.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch (err: any) {
         specificError = err.message || "Failed to fetch AI contexts for management.";
@@ -145,7 +157,7 @@ export default function DevLogEntryPage() {
     const toastId = toast.loading("Updating entry...");
     try {
       const token = localStorage.getItem("access_token");
-      const updated = await updateDevlogEntry(entryIdNum, editFormData, token ?? undefined);
+      const updated = await updateDevlog(entryIdNum, editFormData, token ?? undefined);
       setEntry(updated); setIsEditing(false);
       toast.success("Entry updated successfully!", { id: toastId });
     } catch (err: any) { const msg = err.message || "Failed to update entry."; setErrorEdit(msg); toast.error(msg, { id: toastId });}
@@ -161,7 +173,7 @@ export default function DevLogEntryPage() {
       const toastId = toast.loading(`${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)}ing entry...`);
       try {
         const token = localStorage.getItem("access_token");
-        await deleteDevlogEntry(entryIdNum, token ?? undefined);
+        await deleteDevlog(entryIdNum, token ?? undefined);
         toast.success(`Entry ${actionVerb}d successfully.`, { id: toastId });
         router.push("/devlog");
       } catch (err: any) { const msg = err.message || "Failed to delete entry."; setError(msg); toast.error(msg, { id: toastId }); setLoadingDelete(false); }
@@ -173,7 +185,7 @@ export default function DevLogEntryPage() {
     const toastId = toast.loading("Restoring entry...");
     try {
       const token = localStorage.getItem("access_token");
-      const restored = await restoreDevlogEntry(entryIdNum, token ?? undefined);
+      const restored = await restoreDevlog(entryIdNum, token ?? undefined);
       setEntry(restored);
       setEditFormData({ title: restored.title, content: restored.content, entry_type: restored.entry_type, project_id: restored.project_id, task_id: restored.task_id, tags: restored.tags || [] });
       toast.success("Entry restored successfully!", { id: toastId });
@@ -209,9 +221,9 @@ export default function DevLogEntryPage() {
     try {
         const token = localStorage.getItem("access_token");
         if (editingAiContext) {
-            await updateAiContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
+            await updateAIContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
         } else {
-            await createAiContext({ object_type: "devlog_entry", object_id: entryIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
+            await createAIContext({ object_type: "devlog_entry", object_id: entryIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
         }
         setIsAiContextFormOpen(false); fetchDevlogEntryManagedAiContextsList();
         toast.success("AI Context saved successfully!", { id: toastId });

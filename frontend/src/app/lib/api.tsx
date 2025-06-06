@@ -230,6 +230,10 @@ export function restoreProject(id: number, token?: string | null): Promise<Succe
   return apiFetch<SuccessResponse>(`/projects/${id}/restore`, { method: "POST", token });
 }
 
+export function getProjectSummary(id: number, token?: string | null): Promise<string> {
+  return apiFetch<string>(`/projects/${id}/summary`, { token });
+}
+
 // --- TASK ---
 export function listTasks(params: TaskFilters = {}, token?: string | null): Promise<TaskShort[]> {
   return apiFetch<TaskShort[]>("/tasks/", { params, token });
@@ -270,6 +274,14 @@ export function restoreDevlog(id: number, token?: string | null): Promise<Succes
   return apiFetch<SuccessResponse>(`/devlog/${id}/restore`, { method: "POST", token });
 }
 
+export function getDevlogEntryAIContext(id: number, token?: string | null): Promise<Record<string, any>> {
+  return apiFetch<Record<string, any>>(`/devlog/${id}/ai_context`, { token });
+}
+
+export function summarizeDevlogEntry(id: number, token?: string | null): Promise<string> {
+  return apiFetch<string>(`/devlog/${id}/summary`, { token });
+}
+
 // --- PLUGIN ---
 export function listPlugins(params: PluginFilters = {}, token?: string | null): Promise<PluginShort[]> {
   return apiFetch<PluginShort[]>("/plugins/", { params, token });
@@ -288,6 +300,32 @@ export function deletePlugin(id: number, token?: string | null): Promise<Success
 }
 export function restorePlugin(id: number, token?: string | null): Promise<PluginRead> {
   return apiFetch<PluginRead>(`/plugins/${id}/restore`, { method: "POST", token });
+}
+
+export function activatePlugin(id: number, token?: string | null): Promise<PluginRead> {
+  return apiFetch<PluginRead>(`/plugins/${id}/activate`, { method: "POST", token });
+}
+
+export function deactivatePlugin(id: number, token?: string | null): Promise<PluginRead> {
+  return apiFetch<PluginRead>(`/plugins/${id}/deactivate`, { method: "POST", token });
+}
+
+export function runPluginAction(
+  pluginName: string,
+  actionName: string,
+  projectContext: Record<string, any>,
+  pluginParams: Record<string, any> = {},
+  token?: string | null
+): Promise<string> {
+  return apiFetch<string>(`/plugins/run/${pluginName}/${actionName}`, {
+    method: "POST",
+    body: { project_context: projectContext, plugin_params: pluginParams },
+    token,
+  });
+}
+
+export function getActivePluginsSummary(token?: string | null): Promise<string> {
+  return apiFetch<string>("/plugins/active/summary", { token });
 }
 
 // --- SETTINGS ---
@@ -376,4 +414,16 @@ export function updateChatMessage(id: number, data: ChatMessageUpdate, token?: s
 }
 export function deleteChatMessage(id: number, token?: string | null): Promise<SuccessResponse> {
   return apiFetch<SuccessResponse>(`/jarvis/chat/${id}`, { method: "DELETE", token });
+}
+
+export function askJarvis(data: ChatMessageCreate, token?: string | null): Promise<ChatMessageRead> {
+  return apiFetch<ChatMessageRead>("/jarvis/ask", { method: "POST", body: data, token });
+}
+
+export function getJarvisHistory(projectId: number, params: Record<string, any> = {}, token?: string | null): Promise<ChatMessageShort[]> {
+  return apiFetch<ChatMessageShort[]>("/jarvis/chat/", { params: { project_id: projectId, ...params }, token });
+}
+
+export function deleteJarvisHistory(projectId: number, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>(`/jarvis/history/${projectId}`, { method: "DELETE", token });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { getTasks, TaskRead, TaskFilters, restoreTask } from "../../lib/api"; // Updated imports
+import { listTasks, TaskRead, TaskFilters, restoreTask } from "../../lib/api";
 import TaskCard from "../../components/TaskCard";
 import { PlusCircle, ClipboardList, Search, X } from "lucide-react";
 import Link from "next/link";
@@ -45,7 +45,7 @@ export default function TasksPage() {
         }
     }
 
-    getTasks(activeFilters, token ?? undefined)
+    listTasks(activeFilters, token ?? undefined)
       .then(setTasks)
       .catch((err) => {
         setTasks([]);

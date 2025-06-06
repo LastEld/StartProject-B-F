@@ -661,6 +661,22 @@ export interface ProjectFilters {
   [key: string]: any;
 }
 
+// DevLog list /devlog/?project_id=...&task_id=...&show_archived=false
+export interface DevLogFilters {
+  project_id?: number;
+  task_id?: number;
+  entry_type?: string;
+  author_id?: number;
+  tag?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  show_archived?: boolean;
+  page?: number;
+  per_page?: number;
+  [key: string]: any;
+}
+
 // Template list /templates/?author_id=...&is_deleted=...
 export interface TemplateFilters {
   author_id?: number;

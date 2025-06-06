@@ -160,6 +160,18 @@ curl -X POST "http://localhost:8000/jarvis/ask" \
 
 Jarvis will send the prompt to Ollama and return the AI response while storing the conversation in the database.
 
+### Running the Frontend
+
+The `frontend/` directory contains a Next.js application that serves the user interface. To start it locally:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The site will be available on `http://localhost:3000` by default. Ensure `NEXT_PUBLIC_API_URL` in `frontend/.env.local` points to your backend URL (for example `http://localhost:8000`).
+
 ## Seeding Initial Data
 
 The project includes a script to populate the database with initial data, such as a default admin user.
@@ -287,3 +299,7 @@ Contributions are welcome! If you'd like to contribute, please follow these gene
 6.  Submit a pull request with a clear description of your changes.
 
 (More detailed contribution guidelines can be added if needed, e.g., regarding code style, commit messages, etc.)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

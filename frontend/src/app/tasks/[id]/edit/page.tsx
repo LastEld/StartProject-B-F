@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { getTaskById, updateTask } from "../../../../lib/api"; // Adjusted path
+import { getTask, updateTask } from "../../../../lib/api";
 import { Input } from "../../../../components/ui/input";
 import { Button } from "../../../../components/ui/button";
 import { AlertCircle, Loader2 } from "lucide-react";
@@ -46,7 +46,7 @@ export default function EditTaskPage() {
 
     setIsFetching(true);
     setFetchError(null);
-    getTaskById(id)
+    getTask(Number(id))
       .then((task) => {
         if (task) {
           setFormData({
