@@ -47,3 +47,17 @@ class TokenRefreshResponse(BaseModel):
     token_type: str = Field("bearer", example="bearer", description="Тип токена")
     expires_in: int = Field(..., description="Время жизни access токена (секунды)", example=3600)
     refresh_token: str = Field(..., example="eyJ0eXAiOiJKV...", description="JWT refresh token")
+
+
+class PasswordResetRequest(BaseModel):
+    """
+    PasswordResetRequest — тело запроса для запроса сброса пароля.
+    """
+    email: str = Field(..., example="user@example.com", description="Email пользователя")
+
+class PasswordReset(BaseModel):
+    """
+    PasswordReset — тело запроса для сброса пароля.
+    """
+    token: str = Field(..., example="valid_reset_token", description="Токен сброса пароля")
+    new_password: str = Field(..., example="NewStrongPassw0rd!", description="Новый пароль")

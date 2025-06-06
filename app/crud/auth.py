@@ -8,7 +8,13 @@ from typing import Optional, List
 from datetime import datetime, timezone
 
 import logging
+import secrets
+from datetime import timedelta, datetime, timezone # Ensure timezone is imported
+
 logger = logging.getLogger("DevOS.Auth")
+
+# --- Password Reset Token Lifespan ---
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 60 # Token valid for 1 hour
 
 def store_token_info(
     db: Session,
@@ -190,3 +196,53 @@ def cleanup_expired_tokens(db: Session) -> int:
         db.rollback()
         logger.error(f"Failed to clean up expired tokens: {e}")
         raise ProjectValidationError("Database error while cleaning up expired tokens.")
+
+
+def get_user_by_email(db: Session, email: str) -> Optional[User]:
+    """
+    Retrieves a user by their email address.
+    """
+    return db.query(User).filter(User.email == email).first()
+
+def create_password_reset_token(db: Session, user: User) -> str:
+    """
+    Generates, stores, and returns a password reset token for a user.
+    """
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+
+    user.password_reset_token = token
+    user.password_reset_token_expires_at = expires_at
+
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Created password reset token for user {user.id}")
+        return token
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating password reset token for user {user.id}: {e}")
+        raise ProjectValidationError("Database error while creating password reset token.")
+
+def get_user_by_password_reset_token(db: Session, token: str) -> Optional[User]:
+    """
+    Retrieves a user by their password reset token.
+    Ensures the token is not expired.
+    """
+    user = db.query(User).filter(User.password_reset_token == token).first()
+    if user:
+        if user.password_reset_token_expires_at and user.password_reset_token_expires_at > datetime.now(timezone.utc):
+            return user
+        else:
+            # Token expired, clear it
+            user.password_reset_token = None
+            user.password_reset_token_expires_at = None
+            try:
+                db.commit()
+                logger.info(f"Cleared expired password reset token for user {user.id}")
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error clearing expired password reset token for user {user.id}: {e}")
+            return None
+    return None

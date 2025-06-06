@@ -17,6 +17,8 @@ class User(Base):
     email: str = Column(String(255), unique=True, nullable=False, index=True, doc="Email")
     full_name: str = Column(String(128), nullable=True, doc="Полное имя")
     password_hash: str = Column(String(128), nullable=False, doc="Хэш пароля (никогда не хранить сырой пароль!)")
+    password_reset_token: str = Column(String(255), nullable=True, index=True, doc="Токен для сброса пароля")
+    password_reset_token_expires_at: datetime = Column(DateTime(timezone=True), nullable=True, doc="Время истечения токена для сброса пароля")
     is_active: bool = Column(Boolean, default=True, nullable=False, doc="Аккаунт активен")
     is_superuser: bool = Column(Boolean, default=False, nullable=False, doc="Является ли суперюзером")
     roles: list = Column(JSON, default=lambda: [], nullable=False, doc="Список ролей (['developer', 'manager', ...])")
@@ -33,6 +35,9 @@ class User(Base):
     back_populates="user",
     cascade="all, delete-orphan"
 )
+    # Relationship to Plugins authored by the user
+    plugins = relationship("Plugin", back_populates="author", cascade="all, delete-orphan")
+
     def __repr__(self):
         return (
             f"<User(id={self.id}, username='{self.username}', email='{self.email}', roles={self.roles})>"

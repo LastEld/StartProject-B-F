@@ -140,3 +140,28 @@ def soft_delete_user(db: Session, user_id: int) -> bool:
         db.rollback()
         logger.error(f"Failed to deactivate user {user.username}: {e}")
         raise ProjectValidationError("Database error while deactivating user.")
+
+
+def update_password_for_reset(db: Session, user: User, new_password: str) -> bool:
+    """
+    Updates the user's password after a successful password reset.
+    Also clears the password reset token fields.
+    """
+    if not user:
+        raise ProjectValidationError("User not found.")
+
+    user.password_hash = get_password_hash(new_password)
+    user.password_reset_token = None
+    user.password_reset_token_expires_at = None
+    user.updated_at = datetime.now(timezone.utc)
+
+    try:
+        db.add(user) # Add user to session if it's not already there or has been detached
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Password updated successfully for user {user.username} after reset.")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating password for user {user.username} after reset: {e}")
+        raise ProjectValidationError("Database error while updating password.")

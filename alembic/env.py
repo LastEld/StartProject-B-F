@@ -23,7 +23,21 @@ if config.config_file_name is not None:
 
 # Импорт всех моделей только после sys.path.append!
 from app.models.base import Base
-from app import models
+# from app import models # Commenting out the generic import
+
+# Explicitly import all models for Alembic to see them
+from app.models.project import Project
+from app.models.task import Task
+from app.models.user import User
+from app.models.plugin import Plugin
+from app.models.devlog import DevLogEntry
+from app.models.jarvis import ChatMessage
+from app.models.template import Template
+from app.models.settings import Setting
+from app.models.team import Team
+from app.models.ai_context import AIContext
+from app.models.auth import AccessToken
+# Add any other models here if they exist
 
 # Устанавливаем url для alembic
 # Only set from .env if not already configured (e.g., by test environment)
