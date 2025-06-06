@@ -3,7 +3,7 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  getProjectById,
+  getProject,
   updateProject,
   deleteProject,
   getProjectSummary,
@@ -14,14 +14,14 @@ import {
   AIContextCreate,
   AIContextUpdate as AIContextUpdateType,
   getJarvisHistory,
-  postJarvisMessage,
+  askJarvis,
   deleteJarvisHistory,
   ChatMessageRead,
   ChatMessageCreate,
-  createAiContext,
-  updateAiContext,
-  deleteAiContext as deleteAiContextEntry,
-  listAiContexts
+  createAIContext,
+  updateAIContext,
+  deleteAIContext as deleteAiContextEntry,
+  listAIContexts
 } from "../../../lib/api";
 
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ export default function ProjectDetailPage() {
     setLoading(true); setError(null);
     try {
       const token = localStorage.getItem("access_token");
-      const data = await getProjectById(projectIdStr, token ?? undefined);
+      const data = await getProject(projectIdNum, token ?? undefined);
       setProject(data);
       setEditFormData({
         name: data.name, description: data.description, status: data.status, priority: data.priority,
@@ -136,7 +136,7 @@ export default function ProjectDetailPage() {
     let specificError = null;
     try {
       const token = localStorage.getItem("access_token");
-      const contexts = await listAiContexts({ object_type: "project", object_id: projectIdNum, limit: 50 }, token ?? undefined);
+      const contexts = await listAIContexts({ object_type: "project", object_id: projectIdNum, limit: 50 }, token ?? undefined);
       setAiContexts(contexts.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch (err: any) {
         specificError = err.message || "Failed to fetch AI contexts for project.";
@@ -213,7 +213,7 @@ export default function ProjectDetailPage() {
     try {
       const token = localStorage.getItem("access_token");
       const messageData: ChatMessageCreate = { project_id: projectIdNum, content: newMessage, role: "user" };
-      await postJarvisMessage(messageData, token ?? undefined);
+      await askJarvis(messageData, token ?? undefined);
       fetchChatHistory(); setNewMessage("");
       // toast.success("Message sent!"); // Usually too noisy for chat
     } catch (err: any) { const msg = err.message || "Failed to send message."; setErrorChat(msg); toast.error(msg); }
@@ -249,9 +249,9 @@ export default function ProjectDetailPage() {
     try {
         const token = localStorage.getItem("access_token");
         if (editingAiContext) {
-            await updateAiContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
+            await updateAIContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
         } else {
-            await createAiContext({ object_type: "project", object_id: projectIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
+            await createAIContext({ object_type: "project", object_id: projectIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
         }
         setIsAiContextFormOpen(false); fetchProjectAiContextsList();
         toast.success("AI Context saved successfully!", { id: toastId });

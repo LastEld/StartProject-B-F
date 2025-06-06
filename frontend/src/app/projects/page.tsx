@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import ProjectCard from "../../components/ProjectCard";
 import { Folder, PlusCircle, Search, X, Loader2, AlertCircle } from "lucide-react";
-import { getProjects, ProjectRead, ProjectFilters, restoreProject } from "../../lib/api";
+import { listProjects, ProjectRead, ProjectFilters, restoreProject } from "../../lib/api";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export default function ProjectsPage() {
       }
     }
 
-    getProjects(activeFilters, token ?? undefined)
+    listProjects(activeFilters, token ?? undefined)
       .then(setProjects)
       .catch((err) => {
         setProjects([]);

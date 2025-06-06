@@ -3,7 +3,7 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  getTaskById,
+  getTask,
   updateTask,
   deleteTask,
   restoreTask,
@@ -12,10 +12,10 @@ import {
   AIContextRead,
   AIContextCreate,
   AIContextUpdate as AIContextUpdateType,
-  listAiContexts,
-  createAiContext,
-  updateAiContext,
-  deleteAiContext as deleteAiContextEntry,
+  listAIContexts,
+  createAIContext,
+  updateAIContext,
+  deleteAIContext as deleteAiContextEntry,
 } from "../../../lib/api";
 
 import { Button } from "@/components/ui/button";
@@ -101,7 +101,7 @@ export default function TaskDetailPage() {
     setLoading(true); setError(null);
     try {
       const token = localStorage.getItem("access_token");
-      const data = await getTaskById(taskIdStr, token ?? undefined);
+      const data = await getTask(taskIdNum, token ?? undefined);
       setTask(data);
       setEditFormData({
         name: data.name, description: data.description, status: data.status, priority: data.priority,
@@ -121,7 +121,7 @@ export default function TaskDetailPage() {
     let specificError = null;
     try {
       const token = localStorage.getItem("access_token");
-      const contexts = await listAiContexts({ object_type: "task", object_id: taskIdNum, limit: 50 }, token ?? undefined);
+      const contexts = await listAIContexts({ object_type: "task", object_id: taskIdNum, limit: 50 }, token ?? undefined);
       setAiContexts(contexts.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch (err: any) {
         specificError = err.message || "Failed to fetch AI contexts for task.";
@@ -208,9 +208,9 @@ export default function TaskDetailPage() {
     try {
         const token = localStorage.getItem("access_token");
         if (editingAiContext) {
-            await updateAiContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
+            await updateAIContext(editingAiContext.id, { context_data: parsedContextData, notes: aiContextFormData.notes }, token ?? undefined);
         } else {
-            await createAiContext({ object_type: "task", object_id: taskIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
+            await createAIContext({ object_type: "task", object_id: taskIdNum, context_data: parsedContextData, notes: aiContextFormData.notes, request_id: aiContextFormData.request_id }, token ?? undefined);
         }
         setIsAiContextFormOpen(false); fetchTaskAiContextsList();
         toast.success("AI Context saved successfully!", { id: toastId });

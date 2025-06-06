@@ -34,3 +34,5 @@ alembic/versions/*.pyc
 # Migrations cache (just in case)
 alembic/__pycache__/
 app/__pycache__/
+
+*.db

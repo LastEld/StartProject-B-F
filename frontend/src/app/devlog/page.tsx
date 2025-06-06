@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { listDevlogEntries, DevLogRead, DevLogFilters, restoreDevlogEntry } from "../../lib/api";
+import { listDevlogs, DevLogRead, DevLogFilters, restoreDevlog } from "../../lib/api";
 import DevLogCard from "../../components/DevLogCard";
 import { PlusCircle, BookText, Search, X, Loader2 as PageLoaderIcon, AlertCircle as AlertErrorIcon, BookOpen } from "lucide-react";
 import Link from "next/link";
@@ -35,7 +35,7 @@ export default function DevLogListPage() {
       }
     }
 
-    listDevlogEntries(activeFilters, token ?? undefined)
+    listDevlogs(activeFilters, token ?? undefined)
       .then(setEntries)
       .catch((err) => {
         setEntries([]);
@@ -62,7 +62,7 @@ export default function DevLogListPage() {
 
     const toastId = toast.loading("Restoring DevLog entry...");
     try {
-      await restoreDevlogEntry(entryId, token);
+      await restoreDevlog(entryId, token);
       toast.success("DevLog entry restored successfully!", { id: toastId });
       fetchEntries();
     } catch (err: any) {
