@@ -7,7 +7,7 @@ import { createChatMessage, listChatMessages } from "../app/lib/api";
 import type { ChatMessageRead, ChatMessageCreate } from "../app/lib/types";
 import { Loader2 } from "lucide-react";
 
-export default function JarvisPanel() {
+export default function JarvisPanel({ projectId = 0 }: { projectId?: number }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessageRead[]>([]);
   const [loading, setLoading] = useState(false);
@@ -18,13 +18,13 @@ export default function JarvisPanel() {
     const fetchHistory = async () => {
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : undefined;
-        const chat = await listChatMessages({ is_deleted: false }, token || undefined);
+        const chat = await listChatMessages({ project_id: projectId, is_deleted: false }, token || undefined);
         setMessages(chat as any); // Или кастни как надо
       } catch (err) {
         setMessages([
           {
             id: 0,
-            project_id: 0,
+            project_id: projectId,
             role: "jarvis",
             content: "Hello! I am Jarvis, your project AI assistant.",
             timestamp: null,
@@ -38,7 +38,7 @@ export default function JarvisPanel() {
       }
     };
     fetchHistory();
-  }, []);
+  }, [projectId]);
 
   // Автоскролл вниз
   useEffect(() => {
@@ -52,7 +52,7 @@ export default function JarvisPanel() {
     // Отправляем сообщение пользователя (можно push сразу)
     const userMsg: ChatMessageRead = {
       id: Date.now(), // временный id
-      project_id: 0,
+      project_id: projectId,
       role: "user",
       content: input,
       timestamp: new Date().toISOString(),
@@ -69,7 +69,7 @@ export default function JarvisPanel() {
     try {
       // Здесь ждем ответ Jarvis от API
       const req: ChatMessageCreate = {
-        project_id: 0, // или id активного проекта, если есть
+        project_id: projectId, // или id активного проекта, если есть
         role: "user",
         content: userMsg.content,
         attachments: [],

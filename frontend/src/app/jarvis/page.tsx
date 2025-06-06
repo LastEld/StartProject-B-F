@@ -3,9 +3,13 @@
 
 import React, { useState } from "react";
 import { Send } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import JarvisPanel from "../../components/JarvisPanel";
 
 export default function JarvisPage() {
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get("project_id");
+  const projectId = projectIdParam ? parseInt(projectIdParam) : undefined;
   // Можно сделать отдельное состояние для истории сообщений
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
@@ -75,7 +79,7 @@ export default function JarvisPage() {
 
       {/* Можно добавить JarvisPanel как summary/AI analysis */}
       <div className="mt-6">
-        <JarvisPanel />
+        <JarvisPanel projectId={projectId} />
       </div>
     </div>
   );
