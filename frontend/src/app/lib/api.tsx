@@ -47,6 +47,8 @@ import {
   ChatMessageCreate,
   ChatMessageUpdate,
   ChatMessageShort,
+  JarvisAskRequestType, // Added for Jarvis
+  JarvisAskResponseType, // Added for Jarvis
 } from './types';
 import type { cloneTemplate } from "../lib/types";
 
@@ -362,18 +364,26 @@ export function deleteAIContext(id: number, token?: string | null): Promise<Succ
 }
 
 // --- JARVIS CHAT ---
+// Note: Backend for listChatMessages expects project_id as a query param.
+// Path changed from /jarvis/chat/ to /api/jarvis/chat/
 export function listChatMessages(params: Record<string, any> = {}, token?: string | null): Promise<ChatMessageShort[]> {
-  return apiFetch<ChatMessageShort[]>("/jarvis/chat/", { params, token });
+  return apiFetch<ChatMessageShort[]>("/api/jarvis/chat/", { params, token });
 }
+
+// Path changed from /jarvis/chat/ to /api/jarvis/chat/
 export function createChatMessage(data: ChatMessageCreate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>("/jarvis/chat/", { method: "POST", body: data, token });
+  return apiFetch<ChatMessageRead>("/api/jarvis/chat/", { method: "POST", body: data, token });
 }
-export function getChatMessage(id: number, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { token });
-}
-export function updateChatMessage(id: number, data: ChatMessageUpdate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { method: "PATCH", body: data, token });
-}
-export function deleteChatMessage(id: number, token?: string | null): Promise<SuccessResponse> {
-  return apiFetch<SuccessResponse>(`/jarvis/chat/${id}`, { method: "DELETE", token });
+
+// Removing getChatMessage, updateChatMessage, deleteChatMessage as backend structure changed.
+// New backend has /api/jarvis/chat/history/{project_id_in_path} for delete, not by message ID.
+// Individual message GET/PATCH by ID are not in the new jarvis.py.
+
+// --- JARVIS ASK ---
+export function askJarvis(data: JarvisAskRequestType, token?: string | null): Promise<JarvisAskResponseType> {
+  return apiFetch<JarvisAskResponseType>("/api/jarvis/ask", {
+    method: "POST",
+    body: data,
+    token,
+  });
 }

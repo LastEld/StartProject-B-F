@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from app.schemas.attachment import Attachment
+from app.schemas.attachment import Attachment, AttachmentCreate, AttachmentRead # Assuming AttachmentRead will be available or is Attachment
+from pydantic_settings import SettingsConfigDict # For Pydantic v2 ORM mode
 
 class ChatMessageBase(BaseModel):
     """
@@ -42,8 +43,7 @@ class ChatMessageRead(ChatMessageBase):
     """
     id: int
 
-    class Config:
-        orm_mode = True
+    model_config = SettingsConfigDict(from_attributes=True)
 
 class ChatMessageShort(BaseModel):
     """
@@ -54,5 +54,14 @@ class ChatMessageShort(BaseModel):
     content: str
     timestamp: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = SettingsConfigDict(from_attributes=True)
+
+
+class JarvisAskRequest(BaseModel):
+    project_id: int
+    content: str
+    attachments: Optional[List[AttachmentCreate]] = None
+
+class JarvisAskResponse(BaseModel):
+    user_message: ChatMessageRead
+    jarvis_response: ChatMessageRead

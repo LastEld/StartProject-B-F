@@ -1,7 +1,7 @@
 #app/core/settings.py
 # app/core/settings.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from typing import List, Optional
 from pydantic import field_validator
 
 class Settings(BaseSettings):
@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ENV: str = "development"
     DEBUG: bool = True
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # Авто-сплит строкового списка ALLOWED_ORIGINS из .env
     @field_validator("ALLOWED_ORIGINS", mode="before")

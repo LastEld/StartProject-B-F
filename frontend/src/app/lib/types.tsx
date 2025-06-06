@@ -672,6 +672,32 @@ export interface TemplateFilters {
   [key: string]: any;
 }
 
+// --- AttachmentCreate for Jarvis ---
+// Based on backend app.schemas.attachment.AttachmentCreate
+export interface AttachmentCreate {
+  filename: string;
+  content_type: string; // MIME type
+  file_size: number; // in bytes
+  // Optional context IDs, align with backend
+  project_id?: number;
+  task_id?: number;
+  // user_id is usually set on backend from token
+  // Base64 content for upload will be handled by the API function, not part of this type directly
+}
+
+
+// --- Jarvis Specific API Types ---
+export interface JarvisAskRequestType {
+  project_id: number;
+  content: string;
+  attachments?: AttachmentCreate[];
+}
+
+export interface JarvisAskResponseType {
+  user_message: ChatMessageRead;
+  jarvis_response: ChatMessageRead;
+}
+
 // Team list
 export interface TeamFilters {
   owner_id?: number;
