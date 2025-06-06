@@ -447,15 +447,35 @@ export interface TemplateShort {
   author?: UserRead | null;
   is_deleted: boolean;
 }
-export interface cloneTemplate {
+
+// Updated to reflect the backend's ProjectRead response after cloning a template
+export interface cloneTemplate { // Or a more descriptive name like ClonedProjectResponse
   id: number;
   name: string;
-  is_active: boolean;
-  is_private: boolean;
-  author_id: number;
-  author?: UserRead | null;
-  is_deleted: boolean;
+  description?: string | null;
+  project_status?: string | null;
+  deadline?: string | null; // ISO datetime string or date string
+  priority: number;
+  tags: string[];
+  linked_repo?: string | null;
+  color?: string | null;
+  participants: Participant[];
+  custom_fields: Record<string, any>;
+  parent_project_id?: number | null;
+  attachments: Attachment[];
+  is_favorite: boolean;
+  ai_notes?: string | null;
+  external_id?: string | null;
+  subscription_level?: string | null;
+  author_id?: number | null; // This will be the user who cloned
+  team_id?: number | null;
+  created_at: string; // ISO datetime string
+  updated_at: string; // ISO datetime string
+  is_deleted: boolean; // Should be false for a newly cloned project
+  // Include any other fields that are part of your ProjectRead schema
+  // For example, if ProjectRead has 'owner' or similar fields, add them.
 }
+
 export interface TemplateRead extends TemplateBase {
   id: number;
   author_id: number;
@@ -546,6 +566,31 @@ export interface ChatMessageShort {
   content: string;
   timestamp?: string | null;
 }
+
+// --- Jarvis New Schemas ---
+export interface JarvisRequest {
+  prompt: string;
+  project_id?: number | null;
+  session_id?: string | null;
+  model?: string | null;
+  stream?: boolean | null;
+  options?: Record<string, any> | null;
+}
+
+export interface JarvisResponse {
+  response: string;
+  model: string;
+  created_at: string; // ISO datetime string
+  done: boolean;
+  context?: number[] | null; // Ollama often returns context as number[]
+  total_duration?: number | null;
+  load_duration?: number | null;
+  prompt_eval_count?: number | null;
+  prompt_eval_duration?: number | null;
+  eval_count?: number | null;
+  eval_duration?: number | null;
+}
+
 
 // --- AI Contexts for entities (optional, для AI features) ---
 export interface ProjectAIContext {

@@ -45,10 +45,15 @@ import {
   AIContextUpdate,
   ChatMessageRead,
   ChatMessageCreate,
-  ChatMessageUpdate,
+  // ChatMessageUpdate, // No longer used directly by these API functions
   ChatMessageShort,
+  JarvisRequest,  // Added
+  JarvisResponse, // Added
 } from './types';
-import type { cloneTemplate } from "../lib/types";
+// AIContextUpdate is imported but not used after changes, could be removed if no other function uses it.
+// PluginRead is imported but not used after changes.
+// ChatMessageUpdate is not used after changes.
+import type { cloneTemplate } from "../lib/types"; // This is fine, type only import
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -190,7 +195,7 @@ export function logoutUserApi(token?: string | null): Promise<SuccessResponse> {
 }
 
 export function getMeApi(token?: string | null): Promise<UserRead> {
-  return apiFetch<UserRead>("/auth/me", { token });
+  return apiFetch<UserRead>("/users/me", { token }); // Path changed
 }
 
 // --- USER ---
@@ -286,8 +291,8 @@ export function updatePlugin(id: number, data: PluginUpdate, token?: string | nu
 export function deletePlugin(id: number, token?: string | null): Promise<SuccessResponse> {
   return apiFetch<SuccessResponse>(`/plugins/${id}`, { method: "DELETE", token });
 }
-export function restorePlugin(id: number, token?: string | null): Promise<PluginRead> {
-  return apiFetch<PluginRead>(`/plugins/${id}/restore`, { method: "POST", token });
+export function restorePlugin(id: number, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>(`/plugins/${id}/restore`, { method: "POST", token });
 }
 
 // --- SETTINGS ---
@@ -346,34 +351,40 @@ export function deleteTeam(id: number, token?: string | null): Promise<SuccessRe
 
 // --- AI CONTEXT ---
 export function listAIContexts(params: Record<string, any> = {}, token?: string | null): Promise<AIContextRead[]> {
-  return apiFetch<AIContextRead[]>("/ai_context/", { params, token });
+  return apiFetch<AIContextRead[]>("/ai-context/", { params, token }); // Path changed
 }
-export function createAIContext(data: AIContextCreate, token?: string | null): Promise<AIContextRead> {
-  return apiFetch<AIContextRead>("/ai_context/", { method: "POST", body: data, token });
+export function createAIContext(data: AIContextCreate, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>("/ai-context/", { method: "POST", body: data, token }); // Path changed, Return type changed
 }
 export function getAIContext(id: number, token?: string | null): Promise<AIContextRead> {
-  return apiFetch<AIContextRead>(`/ai_context/${id}`, { token });
+  return apiFetch<AIContextRead>(`/ai-context/${id}`, { token }); // Path changed
 }
-export function updateAIContext(id: number, data: AIContextUpdate, token?: string | null): Promise<AIContextRead> {
-  return apiFetch<AIContextRead>(`/ai_context/${id}`, { method: "PATCH", body: data, token });
+export function updateAIContext(id: number, data: AIContextUpdate, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>(`/ai-context/${id}`, { method: "PATCH", body: data, token }); // Path changed, Return type changed
 }
 export function deleteAIContext(id: number, token?: string | null): Promise<SuccessResponse> {
-  return apiFetch<SuccessResponse>(`/ai_context/${id}`, { method: "DELETE", token });
+  return apiFetch<SuccessResponse>(`/ai-context/${id}`, { method: "DELETE", token }); // Path changed
 }
 
 // --- JARVIS CHAT ---
-export function listChatMessages(params: Record<string, any> = {}, token?: string | null): Promise<ChatMessageShort[]> {
-  return apiFetch<ChatMessageShort[]>("/jarvis/chat/", { params, token });
+// Removed: listChatMessages, getChatMessage, updateChatMessage, deleteChatMessage
+
+export function postJarvisMessage(data: ChatMessageCreate, token?: string | null): Promise<ChatMessageRead> {
+  return apiFetch<ChatMessageRead>("/jarvis/message", { method: "POST", body: data, token }); // Renamed and path changed
 }
-export function createChatMessage(data: ChatMessageCreate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>("/jarvis/chat/", { method: "POST", body: data, token });
+
+export function getJarvisHistory(projectId: number, params: { limit?: number; offset?: number } = {}, token?: string | null): Promise<ChatMessageRead[]> {
+  return apiFetch<ChatMessageRead[]>(`/jarvis/history/${projectId}`, { params, token });
 }
-export function getChatMessage(id: number, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { token });
+
+export function deleteJarvisHistory(projectId: number, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>(`/jarvis/history/${projectId}`, { method: "DELETE", token });
 }
-export function updateChatMessage(id: number, data: ChatMessageUpdate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { method: "PATCH", body: data, token });
+
+export function getLastJarvisMessages(projectId: number, n: number = 5, token?: string | null): Promise<ChatMessageShort[]> {
+  return apiFetch<ChatMessageShort[]>(`/jarvis/history/${projectId}/last`, { params: { n }, token });
 }
-export function deleteChatMessage(id: number, token?: string | null): Promise<SuccessResponse> {
-  return apiFetch<SuccessResponse>(`/jarvis/chat/${id}`, { method: "DELETE", token });
+
+export function askJarvis(data: JarvisRequest, token?: string | null): Promise<JarvisResponse> {
+  return apiFetch<JarvisResponse>("/jarvis/ask", { method: "POST", body: data, token });
 }

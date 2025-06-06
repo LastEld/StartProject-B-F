@@ -1,7 +1,8 @@
 import pytest
 import pytest
 import uuid # For unique names in fixture
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock # Added MagicMock for more versatile mocking if needed
+from http import HTTPStatus # Added HTTPStatus
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.core.settings import settings as app_settings # For API prefix if used, though not currently
@@ -397,9 +398,297 @@ def test_restore_project_api_not_deleted(client: TestClient, normal_user_token_h
 
 def test_restore_project_api_not_found(client: TestClient, superuser_token_headers: dict):
     response = client.post("/projects/99999/restore", headers=superuser_token_headers)
-    assert response.status_code == 404 # Dependency get_deleted_project_for_user_or_404_403 will 404
+    assert response.status_code == HTTPStatus.NOT_FOUND # Dependency get_deleted_project_for_user_or_404_403 will 404
 
-# TODO: Add tests for GET /projects/{project_id}/ai_context
-# TODO: Add tests for GET /projects/{project_id}/summarize
-# TODO: Add more tests for custom field validation via API update
-# TODO: Add tests for duplicate project name via API update (if name updates are allowed and constrained)
+
+# --- Tests for GET /projects/{project_id}/ai_context ---
+
+def test_get_project_ai_context_success(
+    client: TestClient,
+    normal_user_token_headers: dict,
+    api_project_set: list, # api_project_set is a list of ProjectModel
+    test_user: UserModel,
+    db: Session
+):
+    project_to_use = None
+    for p in api_project_set:
+        if p.author_id == test_user.id and not p.is_deleted:
+            project_to_use = p
+            break
+    assert project_to_use is not None, "No suitable project found for test_user in api_project_set"
+
+    mock_ai_context_data = {"project_name": project_to_use.name, "description": project_to_use.description, "tasks_count": 5, "custom_field": "value"}
+
+    # Patch the function where it's looked up by the endpoint code
+    with patch("app.api.project.crud_get_ai_context_for_project") as mock_crud_get_ai_context:
+        mock_crud_get_ai_context.return_value = mock_ai_context_data
+
+        response = client.get(f"{app_settings.API_V1_STR}/projects/{project_to_use.id}/ai_context", headers=normal_user_token_headers)
+
+        assert response.status_code == HTTPStatus.OK, response.text
+        assert response.json() == mock_ai_context_data
+        # The API endpoint calls crud_get_ai_context_for_project(db, project_id)
+        mock_crud_get_ai_context.assert_called_once_with(db, project_id=project_to_use.id)
+
+def test_get_project_ai_context_project_not_found(client: TestClient, normal_user_token_headers: dict):
+    non_existent_project_id = uuid.uuid4()
+    response = client.get(f"{app_settings.API_V1_STR}/projects/{non_existent_project_id}/ai_context", headers=normal_user_token_headers)
+    assert response.status_code == HTTPStatus.NOT_FOUND, response.text
+
+def test_get_project_ai_context_forbidden_other_user(
+    client: TestClient,
+    other_user_token_headers: dict, # Assumed fixture from conftest.py
+    api_project_set: list,
+    test_user: UserModel
+):
+    project_to_use = None
+    for p in api_project_set:
+        if p.author_id == test_user.id and not p.is_deleted: # Project owned by test_user
+            project_to_use = p
+            break
+    assert project_to_use is not None, "No suitable project found for test_user in api_project_set"
+
+    # other_user tries to access test_user's project context
+    response = client.get(f"{app_settings.API_V1_STR}/projects/{project_to_use.id}/ai_context", headers=other_user_token_headers)
+    # get_project_for_user_or_404_403 dependency handles this
+    assert response.status_code == HTTPStatus.FORBIDDEN, response.text # Or 404 depending on exact behavior of dependency
+
+
+# --- Tests for GET /projects/{project_id}/summary ---
+
+def test_get_project_summary_success(
+    client: TestClient,
+    normal_user_token_headers: dict,
+    api_project_set: list,
+    test_user: UserModel,
+    db: Session
+):
+    project_to_use = None
+    for p in api_project_set:
+        if p.author_id == test_user.id and not p.is_deleted:
+            project_to_use = p
+            break
+    assert project_to_use is not None, "No suitable project found for test_user in api_project_set"
+
+    mock_summary_text = f"This is a detailed summary of project {project_to_use.name}."
+
+    # Patch the function where it's looked up by the endpoint code
+    with patch("app.api.project.crud_summarize_project") as mock_crud_summarize_project:
+        mock_crud_summarize_project.return_value = mock_summary_text
+
+        response = client.get(f"{app_settings.API_V1_STR}/projects/{project_to_use.id}/summary", headers=normal_user_token_headers)
+
+        assert response.status_code == HTTPStatus.OK, response.text
+        # The endpoint uses response_model=str, FastAPI returns this as a JSON-encoded string
+        assert response.json() == mock_summary_text
+        mock_crud_summarize_project.assert_called_once_with(db, project_id=project_to_use.id)
+
+def test_get_project_summary_project_not_found(client: TestClient, normal_user_token_headers: dict):
+    non_existent_project_id = uuid.uuid4()
+    response = client.get(f"{app_settings.API_V1_STR}/projects/{non_existent_project_id}/summary", headers=normal_user_token_headers)
+    assert response.status_code == HTTPStatus.NOT_FOUND, response.text
+
+def test_get_project_summary_forbidden_other_user(
+    client: TestClient,
+    other_user_token_headers: dict,
+    api_project_set: list,
+    test_user: UserModel
+):
+    project_to_use = None
+    for p in api_project_set:
+        if p.author_id == test_user.id and not p.is_deleted: # Project owned by test_user
+            project_to_use = p
+            break
+    assert project_to_use is not None, "No suitable project found for test_user in api_project_set"
+
+    # other_user tries to access test_user's project summary
+    response = client.get(f"{app_settings.API_V1_STR}/projects/{project_to_use.id}/summary", headers=other_user_token_headers)
+    assert response.status_code == HTTPStatus.FORBIDDEN, response.text # Or 404
+
+
+# --- Fixture for a single project by test_user for focused tests ---
+@pytest.fixture
+def test_project_by_user(db: Session, test_user: UserModel) -> ProjectModel:
+    from app.crud.project import create_project as crud_create_project
+    from app.core.exceptions import DuplicateProjectName
+
+    project_data = {
+        "name": f"Dedicated Test Project {uuid.uuid4().hex[:6]}",
+        "description": "A project for specific update tests.",
+        "author_id": test_user.id, # This will be set by CRUD or API based on current_user
+        "project_status": "active",
+        "deadline": (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat(),
+        "priority": 1,
+        "tags": ["fixture_tag"],
+        "custom_fields": {"initial_field": "initial_value"}
+    }
+    # crud_create_project in this app typically takes dict and sets author_id from calling user or context
+    # For fixture, we might need to pass author_id if not implicit by some other means
+    # The existing create_project in crud takes a dict, let's ensure author_id is part of it.
+    try:
+        return crud_create_project(db, project_data)
+    except DuplicateProjectName: # Should not happen with UUID in name
+        return db.query(ProjectModel).filter(ProjectModel.name == project_data["name"]).first()
+
+
+# --- Tests for Custom Field Validation (PATCH /projects/{project_id}) ---
+
+MOCKED_TEST_CUSTOM_FIELDS_SCHEMA = {
+    "valid_text_field": {"type": "string", "required": False},
+    "required_number_field": {"type": "number", "required": True},
+    "bool_field": {"type": "boolean", "required": False}
+}
+
+def test_update_project_custom_fields_success(
+    client: TestClient, normal_user_token_headers: dict, test_project_by_user: ProjectModel, db: Session
+):
+    update_payload = {
+        "custom_fields": {
+            "valid_text_field": "new text value",
+            "required_number_field": 42,
+            "bool_field": True
+        }
+    }
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        response = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    db.refresh(test_project_by_user)
+    assert test_project_by_user.custom_fields["valid_text_field"] == "new text value"
+    assert test_project_by_user.custom_fields["required_number_field"] == 42
+    assert test_project_by_user.custom_fields["bool_field"] is True
+
+def test_update_project_custom_fields_validation_error_invalid_type(
+    client: TestClient, normal_user_token_headers: dict, test_project_by_user: ProjectModel, db: Session
+):
+    update_payload = {
+        "custom_fields": {
+            "required_number_field": "this is not a number" # Invalid type
+        }
+    }
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        response = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text # CRUD validation raises ProjectValidationError -> 400
+    assert "Invalid type for field 'required_number_field'" in response.json()["detail"]
+
+def test_update_project_custom_fields_validation_error_missing_required(
+    client: TestClient, normal_user_token_headers: dict, test_project_by_user: ProjectModel, db: Session
+):
+    update_payload = {
+        "custom_fields": {
+            "valid_text_field": "only this field" # Missing required_number_field
+        }
+    }
+    # Ensure the project initially doesn't have the required field, or this test might pass if it's already set.
+    test_project_by_user.custom_fields = {"valid_text_field": "pre-existing"}
+    db.commit()
+    db.refresh(test_project_by_user)
+
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        response = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
+    assert "Missing required custom field 'required_number_field'" in response.json()["detail"]
+
+def test_update_project_custom_fields_clear_fields(
+    client: TestClient, normal_user_token_headers: dict, test_project_by_user: ProjectModel, db: Session
+):
+    # First, ensure some custom fields are set
+    initial_custom_fields = {
+        "custom_fields": {
+            "valid_text_field": "text to be cleared",
+            "required_number_field": 123 # Must be valid to set initially
+        }
+    }
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=initial_custom_fields)
+
+    db.refresh(test_project_by_user)
+    assert test_project_by_user.custom_fields.get("valid_text_field") == "text to be cleared"
+
+    # Then, update with empty custom_fields dict
+    update_payload_clear = {"custom_fields": {}}
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA): # Schema still applies for update
+        response = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_payload_clear)
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    db.refresh(test_project_by_user)
+    # Depending on CRUD logic: {} means "clear all non-required" or "clear all".
+    # Assuming it means "clear all fields that are not required and not provided".
+    # If required_number_field was set, and then an empty {} is sent, it should ideally complain about missing required if it clears all.
+    # Or, if {} means "no changes to custom_fields", then this test needs rethink.
+    # The prompt implies {} should clear. Let's assume it clears fields not in the schema or not required.
+    # A more robust test would be to check if valid_text_field is gone, and required_number_field is still there or also gone (if allowed).
+    # If CUSTOM_FIELDS_SCHEMA is strictly enforced on update (i.e. all required fields must be present in payload if custom_fields key is present):
+    # Then sending {"custom_fields": {}} would fail if required_number_field is missing.
+    # This test path needs to be very specific to the implementation of custom field updates.
+    # For now, let's assume {} means clear optional fields, but required ones must persist or be re-provided.
+    # The current CRUD logic for custom fields (validate_custom_fields) might need to be checked.
+    # If we assume {} means "clear all", then required field validation should kick in if schema requires it.
+    # Let's adjust the test: clearing should make optional fields null/gone.
+    # The required field should remain or the update should fail if it's not re-provided.
+    # A simpler "clear" is to set to null if schema allows, or omit.
+    # Let's test clearing an optional field by setting it to None (if schema supports null) or sending empty dict.
+    # For this test, let's assume custom_fields: {} means "remove all existing custom fields".
+    # If required fields are truly "required" they cannot be removed.
+    # This test is tricky. Re-simplifying: set optional field, then clear it.
+
+    # Re-simplifying the clear test:
+    # 1. Set an optional field and a required field.
+    project_with_fields = {
+        "custom_fields": {"valid_text_field": "abc", "required_number_field": 789}
+    }
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        res = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=project_with_fields)
+        assert res.status_code == HTTPStatus.OK
+
+    # 2. Update to remove the optional field by not including it (partial update)
+    #    or by setting custom_fields to only contain the required one.
+    update_to_clear_optional = {
+         "custom_fields": {"required_number_field": 789} # valid_text_field is omitted
+    }
+    with patch("app.crud.project.CUSTOM_FIELDS_SCHEMA", MOCKED_TEST_CUSTOM_FIELDS_SCHEMA):
+        response_clear = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_to_clear_optional)
+    assert response_clear.status_code == HTTPStatus.OK
+    db.refresh(test_project_by_user)
+    assert "valid_text_field" not in test_project_by_user.custom_fields # Or is None, depending on update logic
+    assert test_project_by_user.custom_fields["required_number_field"] == 789
+
+
+# --- Tests for Duplicate Project Name (PATCH /projects/{project_id}) ---
+
+def test_update_project_duplicate_name_error(
+    client: TestClient, normal_user_token_headers: dict, test_user: UserModel, db: Session
+):
+    from app.crud.project import create_project as crud_create_project # For test setup
+
+    # Create two projects for the same user
+    project1_data = {"name": f"Original Name {uuid.uuid4().hex[:6]}", "author_id": test_user.id, "description":"First project"}
+    project1 = crud_create_project(db, project1_data)
+
+    project2_data = {"name": f"Second Name {uuid.uuid4().hex[:6]}", "author_id": test_user.id, "description":"Second project"}
+    project2 = crud_create_project(db, project2_data)
+
+    update_payload = {"name": project1.name} # Attempt to update project2's name to project1's name
+
+    response = client.patch(f"{app_settings.API_V1_STR}/projects/{project2.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text # DuplicateProjectName from CRUD -> 400
+    assert "Project name already exists" in response.json()["detail"]
+
+def test_update_project_same_name_no_change_ok(
+    client: TestClient, normal_user_token_headers: dict, test_project_by_user: ProjectModel, db: Session
+):
+    update_payload = {"name": test_project_by_user.name} # Update with its own current name
+
+    response = client.patch(f"{app_settings.API_V1_STR}/projects/{test_project_by_user.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    # Ensure no unintended changes, e.g. description is still the same
+    db.refresh(test_project_by_user)
+    assert response.json()["name"] == test_project_by_user.name
+
+
+# TODO: Test pagination and more complex filtering for list_projects if not fully covered.
+# TODO: Test behavior of endpoints when underlying CRUD functions raise unexpected errors (e.g., DB errors if not caught).

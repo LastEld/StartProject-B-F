@@ -4,12 +4,110 @@ from app.models.jarvis import ChatMessage
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
+import httpx
+import os
+import json
+from app.schemas.jarvis import JarvisRequest, JarvisResponse
 
 logger = logging.getLogger("DevOS.ChatController")
+
+OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
 
 class ChatControllerError(Exception):
     """Custom exception for chat controller errors."""
     pass
+
+
+async def ask_ollama(db: Session, request: JarvisRequest, current_user_username: str) -> JarvisResponse:
+    """
+    Asynchronously sends a prompt to the Ollama service and returns its response,
+    while also saving the conversation if a project_id is provided.
+    """
+    payload = {
+        "model": request.model or "llama3",  # Default to llama3
+        "prompt": request.prompt,
+        "stream": False,  # Keep stream False for simplicity
+        "options": request.options or {}
+    }
+
+    logger.debug(f"Ollama request payload: {json.dumps(payload)}")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(OLLAMA_API_URL, json=payload, timeout=60.0)
+            response.raise_for_status()  # Raise an exception for 4XX or 5XX status codes
+            ollama_data = response.json()
+
+            # Map Ollama response to JarvisResponse schema
+            # Ollama's created_at is a string, convert to datetime
+            created_at_str = ollama_data.get("created_at", datetime.utcnow().isoformat())
+            try:
+                created_at_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            except ValueError: # Fallback if parsing fails
+                logger.warning(f"Could not parse created_at string '{created_at_str}', using utcnow().")
+                created_at_dt = datetime.utcnow()
+
+            jarvis_response_data = {
+                "response": ollama_data.get("response", ""),
+                "model": ollama_data.get("model", request.model or "llama3"),
+                "created_at": created_at_dt,
+                "done": ollama_data.get("done", True),
+                "context": ollama_data.get("context"),
+                "total_duration": ollama_data.get("total_duration"),
+                "load_duration": ollama_data.get("load_duration"),
+                "prompt_eval_count": ollama_data.get("prompt_eval_count"),
+                "prompt_eval_duration": ollama_data.get("prompt_eval_duration"),
+                "eval_count": ollama_data.get("eval_count"),
+                "eval_duration": ollama_data.get("eval_duration"),
+            }
+
+            parsed_jarvis_response = JarvisResponse(**jarvis_response_data)
+
+        except httpx.RequestError as e:
+            logger.error(f"Error connecting to Ollama service at {OLLAMA_API_URL}: {e}")
+            raise ChatControllerError(f"Could not connect to Ollama service: {e}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Ollama API error: {e.response.status_code} - {e.response.text}")
+            raise ChatControllerError(f"Ollama API returned an error: {e.response.status_code} - {e.response.text}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding JSON response from Ollama: {e}")
+            raise ChatControllerError(f"Could not decode JSON response from Ollama: {e}")
+        except Exception as e:  # Catch any other unexpected errors
+            logger.error(f"Unexpected error in ask_ollama: {e}", exc_info=True) # Add exc_info for more details
+            raise ChatControllerError(f"An unexpected error occurred: {e}")
+
+    # Save user prompt and Ollama's response
+    if request.project_id is not None:
+        try:
+            save_message(
+                db=db,
+                project_id=request.project_id,
+                role="user",
+                content=request.prompt,
+                author=current_user_username,
+                metadata={"model_requested": request.model or "llama3", "session_id": request.session_id}
+            )
+
+            save_message(
+                db=db,
+                project_id=request.project_id,
+                role="assistant",
+                content=parsed_jarvis_response.response,
+                author="Jarvis", # Or parsed_jarvis_response.model
+                metadata={
+                    "model_used": parsed_jarvis_response.model,
+                    "total_duration_ns": parsed_jarvis_response.total_duration,
+                    "prompt_eval_count": parsed_jarvis_response.prompt_eval_count,
+                    "eval_count": parsed_jarvis_response.eval_count,
+                    "session_id": request.session_id
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to save conversation messages for project_id {request.project_id}: {e}", exc_info=True)
+            # Decide if this failure should raise an error or just be logged
+            # For now, logging, as the primary goal (getting Ollama response) was met.
+
+    return parsed_jarvis_response
 
 def save_message(
     db: Session,

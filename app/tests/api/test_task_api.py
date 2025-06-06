@@ -9,9 +9,10 @@ from app.models.task import Task as TaskModel
 from app.schemas.task import TaskCreate, TaskRead
 from app.crud.project import create_project as crud_create_project # To create parent projects
 from app.crud.task import create_task as crud_create_task, get_task # For test setup and verification
-from app.tests.crud.test_project_crud import MOCKED_CUSTOM_FIELDS_SCHEMA # For patching
+from app.tests.crud.test_project_crud import MOCKED_CUSTOM_FIELDS_SCHEMA as MOCKED_PROJECT_CUSTOM_FIELDS_SCHEMA # Keep for project if needed, rename
 from unittest.mock import patch
-from datetime import date, timedelta, datetime, timezone # Added datetime, timezone
+from datetime import date, timedelta, datetime, timezone
+from http import HTTPStatus # Added HTTPStatus
 
 
 @pytest.fixture
@@ -277,9 +278,255 @@ def task_for_api_update(db: Session, project_for_normal_user: ProjectModel, task
     # Create a task owned by test_user (via project_for_normal_user)
     task_data = task_api_data_factory(project_for_normal_user.id)
     task_data["title"] = f"TaskToUpdate-{uuid.uuid4().hex[:4]}"
-    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', MOCKED_CUSTOM_FIELDS_SCHEMA):
+    # For task_for_api_update, we'll use a task-specific mocked schema if needed in its tests
+    # For now, fixture creates it with project's mocked schema, which is fine if no custom fields are set by default
+    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', {}): # Default to empty schema for this fixture if not testing CFs here
         task = crud_create_task(db, task_data)
     return task
+
+# Define a Task-specific MOCKED_CUSTOM_FIELDS_SCHEMA
+MOCKED_TASK_CUSTOM_FIELDS_SCHEMA = {
+    "task_checkbox_field": {"type": "boolean", "required": False},
+    "required_task_notes": {"type": "string", "required": True}
+}
+
+# --- Tests for Custom Fields in Tasks (Create and Update) ---
+
+def test_create_task_with_custom_fields_success(
+    client: TestClient, normal_user_token_headers: dict, project_for_normal_user: ProjectModel, db: Session, task_api_data_factory: callable
+):
+    payload = task_api_data_factory(project_for_normal_user.id)
+    payload["custom_fields"] = {
+        "task_checkbox_field": True,
+        "required_task_notes": "This is a required note for the task."
+    }
+
+    with patch("app.crud.task.CUSTOM_FIELDS_SCHEMA", MOCKED_TASK_CUSTOM_FIELDS_SCHEMA):
+        response = client.post("/tasks/", headers=normal_user_token_headers, json=payload)
+
+    assert response.status_code == HTTPStatus.OK, response.text # API returns 200 OK for create
+    data = response.json()
+    new_task_id = data["id"]
+
+    db_task = get_task(db, new_task_id)
+    assert db_task is not None
+    assert db_task.custom_fields["task_checkbox_field"] is True
+    assert db_task.custom_fields["required_task_notes"] == "This is a required note for the task."
+
+def test_create_task_custom_fields_validation_error_missing_required(
+    client: TestClient, normal_user_token_headers: dict, project_for_normal_user: ProjectModel, task_api_data_factory: callable
+):
+    payload = task_api_data_factory(project_for_normal_user.id)
+    payload["custom_fields"] = {"task_checkbox_field": False} # Missing "required_task_notes"
+
+    with patch("app.crud.task.CUSTOM_FIELDS_SCHEMA", MOCKED_TASK_CUSTOM_FIELDS_SCHEMA):
+        response = client.post("/tasks/", headers=normal_user_token_headers, json=payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text # CRUD validation error
+    assert "Missing required custom field 'required_task_notes'" in response.json()["detail"]
+
+def test_create_task_custom_fields_validation_error_invalid_type(
+    client: TestClient, normal_user_token_headers: dict, project_for_normal_user: ProjectModel, task_api_data_factory: callable
+):
+    payload = task_api_data_factory(project_for_normal_user.id)
+    payload["custom_fields"] = {
+        "task_checkbox_field": "not a boolean", # Invalid type
+        "required_task_notes": "Valid note."
+    }
+
+    with patch("app.crud.task.CUSTOM_FIELDS_SCHEMA", MOCKED_TASK_CUSTOM_FIELDS_SCHEMA):
+        response = client.post("/tasks/", headers=normal_user_token_headers, json=payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
+    assert "Invalid type for field 'task_checkbox_field'" in response.json()["detail"]
+
+
+def test_update_task_with_custom_fields_success(
+    client: TestClient, normal_user_token_headers: dict, task_for_api_update: TaskModel, db: Session
+):
+    update_payload = {
+        "custom_fields": {
+            "task_checkbox_field": False,
+            "required_task_notes": "Updated required notes."
+        }
+    }
+    with patch("app.crud.task.CUSTOM_FIELDS_SCHEMA", MOCKED_TASK_CUSTOM_FIELDS_SCHEMA):
+        response = client.patch(f"/tasks/{task_for_api_update.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.OK, response.text
+    db.refresh(task_for_api_update)
+    assert task_for_api_update.custom_fields["task_checkbox_field"] is False
+    assert task_for_api_update.custom_fields["required_task_notes"] == "Updated required notes."
+
+def test_update_task_custom_fields_validation_error(
+    client: TestClient, normal_user_token_headers: dict, task_for_api_update: TaskModel, db: Session
+):
+    update_payload = {
+        "custom_fields": {
+             "required_task_notes": 12345 # Invalid type
+        }
+    }
+    # Ensure task initially has valid required field if schema is enforced on full custom_fields replacement
+    task_for_api_update.custom_fields = {"required_task_notes": "initial valid note"}
+    db.commit()
+
+    with patch("app.crud.task.CUSTOM_FIELDS_SCHEMA", MOCKED_TASK_CUSTOM_FIELDS_SCHEMA):
+        response = client.patch(f"/tasks/{task_for_api_update.id}", headers=normal_user_token_headers, json=update_payload)
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
+    assert "Invalid type for field 'required_task_notes'" in response.json()["detail"]
+
+# --- End of Custom Fields Tests ---
+
+
+# --- Enhanced Filter Tests for GET /tasks/ ---
+
+def test_list_tasks_filter_search_title(client: TestClient, superuser_token_headers: dict, api_task_set: list):
+    # Assuming "Alpha" is unique enough in the titles of api_task_set for this test
+    # UserTask Alpha is created by api_task_set
+    search_term = "Alpha"
+    response = client.get(f"/tasks/?search={search_term}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks = response.json()
+    assert len(tasks) > 0
+    found_alpha = False
+    for task in tasks:
+        # Search can be on title and description. This test assumes title primarily.
+        if search_term.lower() in task["title"].lower():
+            found_alpha = True
+            break
+    assert found_alpha, f"Task with '{search_term}' in title not found."
+
+def test_list_tasks_filter_deadline_before(client: TestClient, superuser_token_headers: dict, db: Session, project_for_superuser: ProjectModel):
+    today = datetime.now(timezone.utc).date()
+    task1_deadline_val = today + timedelta(days=2)
+    task2_deadline_val = today + timedelta(days=8)
+
+    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', {}): # No custom fields needed for this
+        task1 = crud_create_task(db, {"title": "DeadlineFilter Before T1", "project_id": project_for_superuser.id, "deadline": task1_deadline_val.isoformat(), "task_status": "todo"})
+        crud_create_task(db, {"title": "DeadlineFilter Before T2", "project_id": project_for_superuser.id, "deadline": task2_deadline_val.isoformat(), "task_status": "todo"})
+
+    filter_date_val = today + timedelta(days=5) # Should include task1, exclude task2
+    response = client.get(f"/tasks/?deadline_before={filter_date_val.isoformat()}&project_id={project_for_superuser.id}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks_json = response.json()
+
+    task_titles = [t["title"] for t in tasks_json]
+    assert "DeadlineFilter Before T1" in task_titles
+    assert "DeadlineFilter Before T2" not in task_titles
+    for task_json_item in tasks_json:
+        if "DeadlineFilter Before T" in task_json_item["title"]: # Only check our specific test tasks
+            task_deadline = datetime.fromisoformat(task_json_item["deadline"].split("T")[0]).date()
+            assert task_deadline < filter_date_val
+
+def test_list_tasks_filter_deadline_after(client: TestClient, superuser_token_headers: dict, db: Session, project_for_superuser: ProjectModel):
+    today = datetime.now(timezone.utc).date()
+    task1_deadline_val = today + timedelta(days=2)
+    task2_deadline_val = today + timedelta(days=8)
+
+    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', {}):
+        crud_create_task(db, {"title": "DeadlineFilter After T1", "project_id": project_for_superuser.id, "deadline": task1_deadline_val.isoformat(), "task_status": "todo"})
+        task2 = crud_create_task(db, {"title": "DeadlineFilter After T2", "project_id": project_for_superuser.id, "deadline": task2_deadline_val.isoformat(), "task_status": "todo"})
+
+    filter_date_val = today + timedelta(days=5) # Should exclude task1, include task2
+    response = client.get(f"/tasks/?deadline_after={filter_date_val.isoformat()}&project_id={project_for_superuser.id}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks_json = response.json()
+
+    task_titles = [t["title"] for t in tasks_json]
+    assert "DeadlineFilter After T1" not in task_titles
+    assert "DeadlineFilter After T2" in task_titles
+    for task_json_item in tasks_json:
+         if "DeadlineFilter After T" in task_json_item["title"]:
+            task_deadline = datetime.fromisoformat(task_json_item["deadline"].split("T")[0]).date()
+            assert task_deadline > filter_date_val
+
+
+def test_list_tasks_filter_deadline_range(client: TestClient, superuser_token_headers: dict, db: Session, project_for_superuser: ProjectModel):
+    today = datetime.now(timezone.utc).date()
+    task_early_val = today + timedelta(days=1)
+    task_mid_val = today + timedelta(days=7)
+    task_late_val = today + timedelta(days=12)
+
+    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', {}):
+        crud_create_task(db, {"title": "DeadlineRange Early", "project_id": project_for_superuser.id, "deadline": task_early_val.isoformat(), "task_status": "todo"})
+        task_mid_obj = crud_create_task(db, {"title": "DeadlineRange Mid", "project_id": project_for_superuser.id, "deadline": task_mid_val.isoformat(), "task_status": "todo"})
+        crud_create_task(db, {"title": "DeadlineRange Late", "project_id": project_for_superuser.id, "deadline": task_late_val.isoformat(), "task_status": "todo"})
+
+    after_filter_date = today + timedelta(days=5)
+    before_filter_date = today + timedelta(days=10)
+
+    response = client.get(f"/tasks/?deadline_after={after_filter_date.isoformat()}&deadline_before={before_filter_date.isoformat()}&project_id={project_for_superuser.id}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks_json = response.json()
+
+    task_titles = [t["title"] for t in tasks_json]
+    assert "DeadlineRange Early" not in task_titles
+    assert "DeadlineRange Mid" in task_titles
+    assert "DeadlineRange Late" not in task_titles
+    for task_json_item in tasks_json:
+        if "DeadlineRange" in task_json_item["title"]:
+            task_deadline = datetime.fromisoformat(task_json_item["deadline"].split("T")[0]).date()
+            assert task_deadline > after_filter_date and task_deadline < before_filter_date
+
+
+def test_list_tasks_filter_parent_task_id(client: TestClient, superuser_token_headers: dict, db: Session, project_for_superuser: ProjectModel):
+    with patch('app.crud.task.CUSTOM_FIELDS_SCHEMA', {}):
+        parent_task = crud_create_task(db, {"title": "Parent Task For Filter", "project_id": project_for_superuser.id, "task_status": "todo"})
+        sub_task = crud_create_task(db, {"title": "Sub-task For Filter", "project_id": project_for_superuser.id, "parent_task_id": parent_task.id, "task_status": "todo"})
+        crud_create_task(db, {"title": "Another Task (Not Sub)", "project_id": project_for_superuser.id, "task_status": "todo"})
+
+    response = client.get(f"/tasks/?parent_task_id={parent_task.id}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks_json = response.json()
+    assert len(tasks_json) == 1
+    assert tasks_json[0]["id"] == sub_task.id
+    assert tasks_json[0]["title"] == "Sub-task For Filter"
+
+def test_list_tasks_filter_assignee_id(client: TestClient, superuser_token_headers: dict, api_task_set: list, test_user: UserModel):
+    assigned_task_in_fixture = None
+    for task_fixture_item in api_task_set: # Corrected variable name
+        if hasattr(task_fixture_item, 'assignees') and task_fixture_item.assignees and any(assignee_info['user_id'] == test_user.id for assignee_info in task_fixture_item.assignees):
+             assigned_task_in_fixture = task_fixture_item
+             break
+    assert assigned_task_in_fixture is not None, "Task assigned to test_user not found in api_task_set fixture"
+
+    response = client.get(f"/tasks/?assignee_id={test_user.id}", headers=superuser_token_headers)
+    assert response.status_code == HTTPStatus.OK, response.text
+    tasks_json = response.json()
+
+    assert len(tasks_json) > 0
+    found_in_response = False
+    for task_resp_item in tasks_json:
+        if task_resp_item["id"] == assigned_task_in_fixture.id:
+            found_in_response = True
+            if "assignees" in task_resp_item and task_resp_item["assignees"]:
+                 assert any(a["user_id"] == test_user.id for a in task_resp_item["assignees"])
+            break
+    assert found_in_response, f"Task ID {assigned_task_in_fixture.id} expected but not found by assignee_id."
+
+
+# --- Other Suggested Tests ---
+
+def test_list_tasks_unauthenticated(client: TestClient):
+    response = client.get("/tasks/")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED, response.text
+
+def test_create_task_invalid_priority(
+    client: TestClient, normal_user_token_headers: dict, project_for_normal_user: ProjectModel, task_api_data_factory: callable
+):
+    payload_low = task_api_data_factory(project_for_normal_user.id)
+    payload_low["priority"] = 0
+
+    response_low = client.post("/tasks/", json=payload_low, headers=normal_user_token_headers)
+    assert response_low.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response_low.text
+
+    payload_high = task_api_data_factory(project_for_normal_user.id)
+    payload_high["priority"] = 6
+
+    response_high = client.post("/tasks/", json=payload_high, headers=normal_user_token_headers)
+    assert response_high.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response_high.text
+
 
 def test_update_task_api_by_author_success(client: TestClient, normal_user_token_headers: dict, task_for_api_update: TaskModel, db: Session):
     update_data = {
