@@ -75,6 +75,8 @@ Configuration for the application is managed via environment variables, typicall
     cp .env.example .env
     ```
 
+    For the frontend, create `frontend/.env.local` and set `NEXT_PUBLIC_API_URL` to the backend URL (e.g. `http://localhost:8000`).
+
 2.  **Key Environment Variables:**
     Open the `.env` file and set the following variables:
 
@@ -140,6 +142,23 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 *   `--port 8000`: Specifies the port to run on.
 
 The application will be available at `http://localhost:8000` or `http://<your-ip>:8000`.
+
+### Jarvis AI Assistant
+
+To enable the optional Jarvis assistant powered by a local Ollama server:
+
+1. Install and run [Ollama](https://ollama.ai/) locally. The API should be available on `http://localhost:11434`.
+2. Start the FastAPI application as shown above.
+3. Use the `/jarvis/ask` endpoint to chat with Jarvis. Example:
+
+```bash
+curl -X POST "http://localhost:8000/jarvis/ask" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "role": "user", "content": "Hello"}'
+```
+
+Jarvis will send the prompt to Ollama and return the AI response while storing the conversation in the database.
 
 ## Seeding Initial Data
 

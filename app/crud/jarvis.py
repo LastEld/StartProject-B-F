@@ -130,6 +130,27 @@ def soft_delete_message(db: Session, message_id: int) -> bool:
         logger.error(f"Failed to soft-delete chat message: {e}")
         raise ChatControllerError(f"Could not delete chat message: {e}")
 
+def update_message(db: Session, message_id: int, data: Dict[str, Any]) -> ChatMessage:
+    """Обновляет существующее сообщение чата."""
+    msg = get_message_by_id(db, message_id, include_deleted=True)
+    if not msg:
+        raise ChatControllerError("Chat message not found.")
+
+    allowed_fields = ["content", "metadata", "author", "ai_notes", "attachments", "is_deleted"]
+    for field in allowed_fields:
+        if field in data and data[field] is not None:
+            target_field = "metadata_" if field == "metadata" else field
+            setattr(msg, target_field, data[field])
+    try:
+        db.commit()
+        db.refresh(msg)
+        logger.info(f"Updated chat message {message_id}")
+        return msg
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update chat message: {e}")
+        raise ChatControllerError(f"Could not update chat message: {e}")
+
 def restore_message(db: Session, message_id: int) -> bool:
     """
     Восстанавливает soft-deleted сообщение чата.
