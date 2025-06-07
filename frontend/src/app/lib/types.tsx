@@ -64,16 +64,6 @@ export interface SuccessResponse {
   detail?: string | null;
 }
 
-export interface ErrorDetail {
-  code: string;
-  message: string;
-  details?: any;
-}
-
-export interface ErrorResponse {
-  error: ErrorDetail;
-}
-
 export interface ListResponse<T> {
   results: T[];
   total_count?: number;

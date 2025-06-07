@@ -3,7 +3,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { createChatMessage, listChatMessages } from "../app/lib/api";
+import {
+  createChatMessage,
+  listChatMessages,
+} from "../app/lib/api";
 import type { ChatMessageRead, ChatMessageCreate } from "../app/lib/types";
 import { Loader2 } from "lucide-react";
 
@@ -18,8 +21,8 @@ export default function JarvisPanel() {
     const fetchHistory = async () => {
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : undefined;
-        const chat = await listChatMessages({ is_deleted: false }, token || undefined);
-        setMessages(chat as any); // Или кастни как надо
+        const chat = await listChatMessages(0, { limit: 20 }, token || undefined);
+        setMessages(chat as any);
       } catch (err) {
         setMessages([
           {
