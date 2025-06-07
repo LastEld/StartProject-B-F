@@ -362,18 +362,25 @@ export function deleteAIContext(id: number, token?: string | null): Promise<Succ
 }
 
 // --- JARVIS CHAT ---
-export function listChatMessages(params: Record<string, any> = {}, token?: string | null): Promise<ChatMessageShort[]> {
-  return apiFetch<ChatMessageShort[]>("/jarvis/chat/", { params, token });
+export function listChatMessages(
+  projectId: number,
+  params: { limit?: number; offset?: number } = {},
+  token?: string | null,
+): Promise<ChatMessageRead[]> {
+  return apiFetch<ChatMessageRead[]>(`/jarvis/history/${projectId}`, { params, token });
 }
 export function createChatMessage(data: ChatMessageCreate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>("/jarvis/chat/", { method: "POST", body: data, token });
+  return apiFetch<ChatMessageRead>("/jarvis/message", { method: "POST", body: data, token });
 }
-export function getChatMessage(id: number, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { token });
+export function deleteChatHistory(projectId: number, token?: string | null): Promise<SuccessResponse> {
+  return apiFetch<SuccessResponse>(`/jarvis/history/${projectId}`, { method: "DELETE", token });
 }
-export function updateChatMessage(id: number, data: ChatMessageUpdate, token?: string | null): Promise<ChatMessageRead> {
-  return apiFetch<ChatMessageRead>(`/jarvis/chat/${id}`, { method: "PATCH", body: data, token });
-}
-export function deleteChatMessage(id: number, token?: string | null): Promise<SuccessResponse> {
-  return apiFetch<SuccessResponse>(`/jarvis/chat/${id}`, { method: "DELETE", token });
+export function lastChatMessages(
+  projectId: number,
+  n?: number,
+  token?: string | null,
+): Promise<ChatMessageShort[]> {
+  const params: Record<string, any> = {};
+  if (n !== undefined) params.n = n;
+  return apiFetch<ChatMessageShort[]>(`/jarvis/history/${projectId}/last`, { params, token });
 }
