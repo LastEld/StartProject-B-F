@@ -110,7 +110,7 @@ export default function SettingsPage() {
       const settings = await listSettings({ /* user_id implicitly null/absent for global */ }, token);
       // Filter for settings that are explicitly global or have no user_id
       // This depends on how your backend defines global settings via listSettings
-      setGlobalSettings(settings.filter(s => s.is_global || !s.user_id));
+      setGlobalSettings(settings.filter(s => !s.user_id));
     } catch (err: any) {
       setError(err.message || "Failed to fetch global settings.");
     } finally {
@@ -143,6 +143,14 @@ export default function SettingsPage() {
     return String(value);
   };
 
+  const inferValueType = (value: SettingValue): ValueType => {
+    const t = typeof value;
+    if (t === 'number') return 'number';
+    if (t === 'boolean') return 'boolean';
+    if (t === 'object') return 'json';
+    return 'string';
+  };
+
   const openFormForNew = (isGlobalContext: boolean = false) => {
     setEditingSetting(null);
     setSettingKey("");
@@ -156,9 +164,10 @@ export default function SettingsPage() {
   const openFormForEdit = (setting: SettingRead) => {
     setEditingSetting(setting);
     setSettingKey(setting.key);
-    setSettingValueType(setting.value_type || "string");
-    setSettingValue(formatSettingValueForInput(setting.value, setting.value_type || "string"));
-    setIsGlobalSettingForm(setting.is_global || !setting.user_id);
+    const inferredType = inferValueType(setting.value as SettingValue);
+    setSettingValueType(inferredType);
+    setSettingValue(formatSettingValueForInput(setting.value as SettingValue, inferredType));
+    setIsGlobalSettingForm(!setting.user_id);
     setFormError(null);
     setIsFormOpen(true);
   };
@@ -181,15 +190,12 @@ export default function SettingsPage() {
     const settingPayload: SettingCreate = {
       key: settingKey,
       value: parsedValue,
-      value_type: settingValueType,
     };
 
     if (isAdmin && isGlobalSettingForm) {
-      settingPayload.user_id = null; // Explicitly null for global, or undefined
-      settingPayload.is_global = true;
+      settingPayload.user_id = null;
     } else {
-      settingPayload.user_id = userId; // User's own setting
-      settingPayload.is_global = false;
+      settingPayload.user_id = userId;
     }
 
     try {
@@ -282,7 +288,7 @@ export default function SettingsPage() {
               <TableRow key={s.id} className="dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <TableCell className="font-medium dark:text-gray-300">{s.key}</TableCell>
                 <TableCell className="text-sm dark:text-gray-400 truncate max-w-sm">{typeof s.value === 'object' ? JSON.stringify(s.value) : String(s.value)}</TableCell>
-                <TableCell><Badge variant="outline" className="dark:border-gray-600 dark:text-gray-300">{s.value_type || 'string'}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className="dark:border-gray-600 dark:text-gray-300">{inferValueType(s.value as SettingValue)}</Badge></TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => openFormForEdit(s)} className="dark:text-gray-400 hover:dark:text-blue-400"><Edit3 className="w-4 h-4"/></Button>
                   <Button variant="ghost" size="icon" onClick={() => handleDeleteSetting(s.id, isGlobalTable)} className="dark:text-gray-400 hover:dark:text-red-400"><Trash2 className="w-4 h-4"/></Button>
