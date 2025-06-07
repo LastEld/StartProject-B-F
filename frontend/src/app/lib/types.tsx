@@ -387,6 +387,8 @@ export interface SettingRead extends SettingBase {
   updated_at: string;
 }
 
+export type SettingValue = string | number | boolean | Record<string, any>;
+
 // --- Template ---
 export interface TemplateBase {
   name: string;

@@ -304,6 +304,14 @@ export function deleteSetting(id: number, token?: string | null): Promise<Succes
   return apiFetch<SuccessResponse>(`/settings/${id}`, { method: "DELETE", token });
 }
 
+export function upsertSetting(key: string, data: SettingCreate, token?: string | null): Promise<SettingRead> {
+  return apiFetch<SettingRead>(`/settings/${key}`, { method: "PUT", body: data, token });
+}
+
+export function getEffectiveSetting(key: string, token?: string | null): Promise<SettingRead> {
+  return apiFetch<SettingRead>(`/settings/effective/${key}`, { token });
+}
+
 // --- TEMPLATE ---
 export function listTemplates(params: TemplateFilters = {}, token?: string | null): Promise<TemplateShort[]> {
   return apiFetch<TemplateShort[]>("/templates/", { params, token });
@@ -384,3 +392,6 @@ export function lastChatMessages(
   if (n !== undefined) params.n = n;
   return apiFetch<ChatMessageShort[]>(`/jarvis/history/${projectId}/last`, { params, token });
 }
+
+export * from './types';
+export type SettingValue = string | number | boolean | Record<string, any>;
